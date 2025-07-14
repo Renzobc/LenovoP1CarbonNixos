@@ -1,61 +1,49 @@
-# flake.nix
 {
-  inputs = {
+  description = "NixOS flake for P1 Carbon";
 
+  inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/ad0b5ee";
+
     home-manager = {
+      url = "github:nix-community/home-manager/release-24.11";
       inputs.nixpkgs.follows = "nixpkgs";
-      # url = "github:nix-community/home-manager/release-24.11";
     };
 
-    # One can include out own flake as input.
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
-  # self is a reference to the flake itself
-  outputs = inputs: let
+
+  outputs = { self, nixpkgs, home-manager, nixpkgs-unstable, ... }@inputs: let
     system = "x86_64-linux";
     stateVersion = "24.11";
-    pkgs = import inputs.nixpkgs {
+    unstablePkgs = import nixpkgs-unstable { 
+      inherit system; 
+      config.allowUnfree = true;
+    };
+    pkgs = import nixpkgs {
       inherit system;
-      config.allowUnfree = true;    
+      config.allowUnfree = true;
     };
   in {
-    # configure home manager
+    nixosConfigurations.p1carbon = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        home-manager.nixosModules.home-manager
+        ./configuration.nix
+        {
+        nixpkgs.overlays = [
+              (final: prev: {
+                vscode = unstablePkgs.vscode;
+              })
+            ];
+        }
+        ./renzo.nix
+        ./renzobc.nix
+      ];
 
-    inputs.home-manager.nixosModules.home-manager = {
-      url = "github:nix-community/home-manager/release-24.11";
-      useGlobalPkgs = true;
-      useUserPackages = true;
-      backupFileExtension = "backup";
+      specialArgs = {
+        inherit stateVersion system;
+      };
     };
-
-    # nixos.System give all inputs to configuration.nix
-nixosConfigurations."p1carbon" = inputs.nixpkgs.lib.nixosSystem {
-  system = "x86_64-linux";
-  modules = [
-    inputs.home-manager.nixosModules.home-manager
-    ./configuration.nix
-    ./renzo.nix
-    ./renzobc.nix
-
-    
-    # nixpkgs.overlays = [
-    #   (final: prev: {
-    #     docker = import inputs.nixpkgs {
-    #       inherit system;
-    #       config.allowUnfree = true;
-    #     };
-    #   })
-    # ];
-
-    # nixpkgs.config.allowUnfree = true;
-    # virtualisation.docker.package = pkgs.docker; # Uses the overlayed version
-    
-  ];
-
-  specialArgs = {
-    inherit stateVersion system;
-  };
-};
 
     formatter.${system} = pkgs.alejandra;
   };

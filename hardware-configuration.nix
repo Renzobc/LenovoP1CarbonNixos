@@ -8,10 +8,10 @@
   modulesPath,
   ...
 }: {
-  boot.kernelPackages = kernelNixpkgs.linuxPackages;
-  # imports = [
-  #   (modulesPath + "/installer/scan/not-detected.nix")
-  # ];
+  # boot.kernelPackages = pkgs.linuxPackages;
+  imports = [
+    (modulesPath + "/installer/scan/not-detected.nix")
+  ];
   # boot.kernelPackages = pkgs.linuxKernel.packages.linux_6_9;
   # boot.kernelPackages = pkgs.linuxPackagesFor (pkgs.linux_6_6.override {
   #   argsOverride = rec {
@@ -23,10 +23,9 @@
   #     };
   #   };
   # });
-  boot.initrd.kernelModules = [ "nvme" "xhci_pci" "usb_storage" "sd_mod" "rtsx_pci_sdmmc" ];
   boot.initrd.availableKernelModules = ["xhci_pci" "nvme" "thunderbolt" "usb_storage" "sd_mod" "rtsx_pci_sdmmc"];
-  # boot.initrd.kernelModules = [];
-  boot.kernelModules = ["kvm-intel" "fuse"];
+  boot.initrd.kernelModules = [];
+  boot.kernelModules = ["kvm-intel"];
   boot.initrd.systemd.enable = true; # Example of enabling initrd systemd
   boot.extraModulePackages = with config.boot.kernelPackages; [
     rtl8821au
@@ -49,6 +48,17 @@
     options = ["fmask=0077" "dmask=0077"];
   };
 
+#  fileSystems."/var/lib/docker/overlay2/8450307d2fd7cde54d221187480b07dde020c168015e8b3f52aeaf22da7abf7b/merged" =
+#    { device = "overlay";
+#      fsType = "overlay";
+#    };
+
+#  fileSystems."/var/lib/docker/overlay2/55dfc8ca317cf9b79673f1c779097a32a58b181753e18df4f94b24b9f24592b3/merged" =
+#    { device = "overlay";
+#      fsType = "overlay";
+#    };
+
+
   swapDevices = [];
 
   # Enables DHCP on each ethernet and wireless interface. In case of scripted networking
@@ -56,8 +66,15 @@
   # still possible to use this option, but it's recommended to use it in conjunction
   # with explicit per-interface declarations with `networking.interfaces.<interface>.useDHCP`.
   networking.useDHCP = lib.mkDefault true;
-  # networking.interfaces.enp37s0u2u1u2.useDHCP = lib.mkDefault true;
+  # networking.interfaces.br-aaf830344013.useDHCP = lib.mkDefault true;
+  # networking.interfaces.br-bf10a2056d63.useDHCP = lib.mkDefault true;
+  # networking.interfaces.docker0.useDHCP = lib.mkDefault true;
+  # networking.interfaces.enp85s0.useDHCP = lib.mkDefault true;
+  # networking.interfaces.tailscale0.useDHCP = lib.mkDefault true;
+  # networking.interfaces.veth21070c3.useDHCP = lib.mkDefault true;
+  # networking.interfaces.veth7ba9fc3.useDHCP = lib.mkDefault true;
   # networking.interfaces.wlp0s20f3.useDHCP = lib.mkDefault true;
+
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;

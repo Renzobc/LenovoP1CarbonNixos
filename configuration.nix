@@ -209,6 +209,11 @@
     python3Packages.kconfiglib
     python3Packages.pyserial
     python3Packages.numpy
+    python3Packages.pexpect
+    python3Packages.GitPython 
+    python3Packages.jinja2
+    python3Packages.pylint
+    python3Packages.subunit
     gcc
     cmake
     openssl
@@ -229,7 +234,9 @@
     mpv
     curl
     sudo
+    sshuttle
     openssh
+    ruff
     fontconfig
     noto-fonts
     flux
@@ -243,6 +250,7 @@
     vlc
     jq
     usbutils
+    diffstat
     whois
     lsof
     qgroundcontrol
@@ -257,6 +265,7 @@
     busybox
     fzf
     bat
+    gawk
     sqlite
     sqlitebrowser
     pre-commit
@@ -269,6 +278,20 @@
     gst_all_1.gst-plugins-good
     gst_all_1.gst-plugins-base
     obsidian
+    gh
+    binutils
+    gdb
+    chrpath 
+    socat 
+    cpio
+    xz
+    debianutils
+    mesa
+    mesa.dev 
+    SDL
+    xterm 
+    zstd 
+    lz4
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -337,7 +360,7 @@
 
   '';
 
-  networking.firewall.enable = true; # Ensure firewall is enabled
+  networking.firewall.enable = false; # Ensure firewall is enabled
   networking.nat.enable = true; # Enable NAT
   # networking.enableIPv4Forwarding = true;  # Enable IPv4 forwarding
 
@@ -350,9 +373,18 @@
 
   #     WiFi Interface = wlp0s20f3 enp85s0(Internet source)
   #     USB Ethernet Interface = enp86s0u2c2 (Network to share Internet to)
-
+    # iptables -t nat -A POSTROUTING -o wlp0s20f3 -j MASQUERADE
+  networking.interfaces.enp86s0u1c2 = {
+      useDHCP = false;  # Disable DHCP for this interface
+      ipv4.addresses = [{
+        address = "192.168.128.25";  # Your desired IP address
+        prefixLength = 24;        # Your subnet mask (e.g., /24)
+      }];
+    };
+#   defaultGateway = "192.168.1.1";  # Your default gateway (router's IP)
+#   nameservers = ["8.8.8.8"];      # Your DNS servers (e.g., Google DNS)
+# };
   networking.firewall.extraCommands = ''
-    iptables -t nat -A POSTROUTING -o wlp0s20f3 -j MASQUERADE
     iptables -A FORWARD -i enp86s0u2c2 -o wlp0s20f3 -j ACCEPT
     iptables -A FORWARD -i wlp0s20f3 -o enp86s0u2c2 -m state --state RELATED,ESTABLISHED -j ACCEPT
     iptables -t nat -A POSTROUTING -o enp85s0 -j MASQUERADE
@@ -429,28 +461,28 @@
   };
 
   # networking.firewall.enable  = false;
-  networking.firewall.allowedTCPPortRanges = [
-    {
-      from = 3000;
-      to = 9000;
-    }
-    {
-      from = 39320;
-      to = 39420;
-    }
-  ];
+  # networking.firewall.allowedTCPPortRanges = [
+  #   {
+  #     from = 3000;
+  #     to = 9000;
+  #   }
+  #   {
+  #     from = 39320;
+  #     to = 39420;
+  #   }
+  # ];
 
-  networking.firewall.allowedUDPPortRanges = [
-    {
-      from = 3000;
-      to = 9000;
-    }
+  # networking.firewall.allowedUDPPortRanges = [
+  #   {
+  #     from = 3000;
+  #     to = 9000;
+  #   }
     # {
     #   from = 8000;
     #   to = 8010;
     # }
-  ];
-  networking.firewall.allowedTCPPorts = [22 80 443];
+  # ];
+  # networking.firewall.allowedTCPPorts = [22 80 443];
   virtualisation.oci-containers.backend = "docker";
   virtualisation.podman.enable = true;
 
