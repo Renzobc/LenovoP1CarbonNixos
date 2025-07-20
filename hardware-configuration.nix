@@ -8,7 +8,30 @@
   modulesPath,
   ...
 }: {
-  # boot.kernelPackages = pkgs.linuxPackages;
+  boot.kernelPackages = pkgs.linuxPackages_6_6;
+  boot.initrd.availableKernelModules = [
+    "xhci_pci"
+    "nvme"
+    "thunderbolt"
+    "usb_storage"
+    "sd_mod"
+    "rtsx_pci_sdmmc"
+  ];
+
+  boot.initrd.kernelModules = [
+    # Remove NVIDIA modules from initrd since we're using offload mode
+    # "nvidia"
+    # "nvidia_modeset"
+    # "nvidia_uvm"
+    # "nvidia_drm"
+  ];
+
+  boot.kernelModules = ["kvm-intel" "nvidia" "nvidia_modeset" "nvidia_uvm" "nvidia_drm"];
+
+  boot.blacklistedKernelModules = ["nouveau"];
+
+  boot.kernelParams = ["modprobe.blacklist=nouveau" "nouveau.modeset=0"];
+
   imports = [
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
@@ -23,13 +46,9 @@
   #     };
   #   };
   # });
-  boot.initrd.availableKernelModules = ["xhci_pci" "nvme" "thunderbolt" "usb_storage" "sd_mod" "rtsx_pci_sdmmc"];
-  boot.initrd.kernelModules = [];
-  boot.kernelModules = ["kvm-intel"];
   boot.initrd.systemd.enable = true; # Example of enabling initrd systemd
   boot.extraModulePackages = with config.boot.kernelPackages; [
-    rtl8821au
-    rtl88xxau-aircrack
+    nvidia_x11
   ];
   # boot.initrd.systemd.tpm2.enable = false;
   fileSystems."/" = {
@@ -48,16 +67,15 @@
     options = ["fmask=0077" "dmask=0077"];
   };
 
-#  fileSystems."/var/lib/docker/overlay2/8450307d2fd7cde54d221187480b07dde020c168015e8b3f52aeaf22da7abf7b/merged" =
-#    { device = "overlay";
-#      fsType = "overlay";
-#    };
+  #  fileSystems."/var/lib/docker/overlay2/8450307d2fd7cde54d221187480b07dde020c168015e8b3f52aeaf22da7abf7b/merged" =
+  #    { device = "overlay";
+  #      fsType = "overlay";
+  #    };
 
-#  fileSystems."/var/lib/docker/overlay2/55dfc8ca317cf9b79673f1c779097a32a58b181753e18df4f94b24b9f24592b3/merged" =
-#    { device = "overlay";
-#      fsType = "overlay";
-#    };
-
+  #  fileSystems."/var/lib/docker/overlay2/55dfc8ca317cf9b79673f1c779097a32a58b181753e18df4f94b24b9f24592b3/merged" =
+  #    { device = "overlay";
+  #      fsType = "overlay";
+  #    };
 
   swapDevices = [];
 
@@ -74,7 +92,6 @@
   # networking.interfaces.veth21070c3.useDHCP = lib.mkDefault true;
   # networking.interfaces.veth7ba9fc3.useDHCP = lib.mkDefault true;
   # networking.interfaces.wlp0s20f3.useDHCP = lib.mkDefault true;
-
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;

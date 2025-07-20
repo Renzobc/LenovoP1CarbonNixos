@@ -12,16 +12,28 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs, home-manager, nixpkgs-unstable, ... }@inputs: let
+  outputs = {
+    self,
+    nixpkgs,
+    home-manager,
+    nixpkgs-unstable,
+    ...
+  } @ inputs: let
     system = "x86_64-linux";
     stateVersion = "24.11";
-    unstablePkgs = import nixpkgs-unstable { 
-      inherit system; 
+    unstablePkgs = import nixpkgs-unstable {
+      inherit system;
       config.allowUnfree = true;
     };
+
     pkgs = import nixpkgs {
       inherit system;
       config.allowUnfree = true;
+      overlays = [
+        (final: prev: {
+          vscode = unstablePkgs.vscode;
+        })
+      ];
     };
   in {
     nixosConfigurations.p1carbon = nixpkgs.lib.nixosSystem {
@@ -30,11 +42,11 @@
         home-manager.nixosModules.home-manager
         ./configuration.nix
         {
-        nixpkgs.overlays = [
-              (final: prev: {
-                vscode = unstablePkgs.vscode;
-              })
-            ];
+          nixpkgs.overlays = [
+            (final: prev: {
+              vscode = unstablePkgs.vscode;
+            })
+          ];
         }
         ./renzo.nix
         ./renzobc.nix

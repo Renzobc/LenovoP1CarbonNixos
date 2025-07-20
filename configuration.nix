@@ -37,6 +37,14 @@
     efi   /EFI/ubuntu/shimx64.efi
   '';
 
+  boot.loader.systemd-boot.extraEntries."NixManual.conf" = ''
+  title   NixOs (Manual)
+  version Generation 198 NixOS Vicuna 24.11.20240716.ad0b5ee (Linux 6.6.40), built on 2025-07-19
+  linux /EFI/nixos/d233rrhli90jq935l0jbqy3hwpj5ar51-linux-6.6.40-bzImage.efi
+  initrd /EFI/nixos/icbcwx1mbj3zpl75ly9srkgfrramzfzs-initrd-linux-6.6.40-initrd.efi
+  options init=/nix/store/i6dw98188ji6ak89pckb6dbm1pvigrl0-nixos-system-p1carbon-24.11.20240716.ad0b5ee/init modprobe.blacklist=nouveau nouveau.modeset=0 root=fstab loglevel=4 machine-id 53026cf0978a445fb77e83294f9cdde4
+'';
+
   networking.hostName = "p1carbon"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
@@ -46,6 +54,18 @@
 
   # Enable networking
   networking.networkmanager.enable = true;
+
+  # # Configure NetworkManager-wait-online service
+  # systemd.services."NetworkManager-wait-online" = {
+  #   enable = true;
+  #   serviceConfig = {
+  #     ExecStart = [
+  #       ""  # Clear the default ExecStart
+  #       "${pkgs.networkmanager}/bin/nm-online -s -q --timeout=30"  # Set a shorter timeout (30 seconds)
+  #     ];
+  #     TimeoutStartSec = 35;  # Slightly longer than the nm-online timeout
+  #   };
+  # };
 
   # Enable vpn
   networking.openconnect.interfaces = {
@@ -62,19 +82,32 @@
   time.timeZone = "Asia/Dubai";
 
   # Select internationalisation properties.
-  #i18n.defaultLocale = "en_US.UTF-8";
+  i18n.defaultLocale = "en_US.UTF-8";
+  i18n.supportedLocales = ["en_US.UTF-8/UTF-8"];
 
-  #i18n.extraLocaleSettings = {
-  #  LC_ADDRESS = "en_US.UTF-8";
-  #  LC_IDENTIFICATION = "en_US.UTF-8";
-  #  LC_MEASUREMENT = "en_US.UTF-8";
-  #  LC_MONETARY = "en_US.UTF-8";
-  #  LC_NAME = "en_US.UTF-8";
-  #  LC_NUMERIC = "en_US.UTF-8";
-  #  LC_PAPER = "en_US.UTF-8";
-  #  LC_TELEPHONE = "en_US.UTF-8";
-  #  LC_TIME = "en_US.UTF-8";
-  #};
+  # Optional: Export locale to all shell sessions (good for bitbake)
+  environment.variables = {
+    LANG = "en_US.UTF-8";
+    LC_ALL = "en_US.UTF-8";
+  };
+
+  # i18n.extraLocaleSettings = {
+  #   LC_ADDRESS = "en_US.UTF-8";
+  #   LC_IDENTIFICATION = "en_US.UTF-8";
+  #   LC_MEASUREMENT = "en_US.UTF-8";
+  #   LC_MONETARY = "en_US.UTF-8";
+  #   LC_NAME = "en_US.UTF-8";
+  #   LC_NUMERIC = "en_US.UTF-8";
+  #   LC_PAPER = "en_US.UTF-8";
+  #   LC_TELEPHONE = "en_US.UTF-8";
+  #   LC_TIME = "en_US.UTF-8";
+  # };
+
+  # Add this to explicitly generate the required locales
+  # i18n.supportedLocales = [
+  #   "en_US.UTF-8/UTF-8"
+  #   "en_US/ISO-8859-1"
+  # ];
 
   # Enable the X11 windowing system.
   services.xserver.enable = true;
@@ -97,7 +130,79 @@
   # Enable sound with pipewire.
   # sound.enable = true;
   # services.pulseaudio.enable = false;
+  
+  # Include both modesetting (Intel) and nvidia drivers for hybrid setup
+  # PRIME offload ensures Intel is used for display, NVIDIA for containers/compute
+  services.xserver.videoDrivers = ["modesetting" "nvidia"];
+  
+  # Force Intel as primary display device for X11 even when NVIDIA is loaded
+  services.xserver.config = ''
+    Section "Device"
+        Identifier "Intel Graphics"
+        Driver "modesetting"
+        BusID "PCI:0:2:0"
+    EndSection
+    
+    Section "Screen"
+        Identifier "Intel Screen"
+        Device "Intel Graphics"
+    EndSection
+    
+    Section "ServerLayout"
+        Identifier "Layout"
+        Screen "Intel Screen"
+    EndSection
+  '';
+
   hardware.pulseaudio.enable = false;
+  hardware.graphics.enable = true;
+  hardware.graphics.enable32Bit = true;  # Enable 32-bit graphics support for NVIDIA
+  hardware.opengl.enable = true;
+
+
+  # NVIDIA configuration for computation and containers (PRIME offload)
+  hardware.nvidia = {
+    modesetting.enable = true;
+    powerManagement.enable = true;
+    powerManagement.finegrained = false;
+    open = false;
+    nvidiaSettings = true;
+    package = config.boot.kernelPackages.nvidiaPackages.stable;
+
+    prime = {
+      offload = {
+        enable = true;
+        enableOffloadCmd = true;
+      };
+      sync.enable = false;
+      # Reverse prime - Intel for display, NVIDIA for offload only
+      reverseSync.enable = false;
+      intelBusId = "PCI:0:2:0";     # Intel iGPU from lspci
+      nvidiaBusId = "PCI:1:0:0";    # NVIDIA GPU from lspci
+    };
+  };
+
+  # Ensure NVIDIA is available for containers by setting proper environment
+  environment.variables = {
+    # NVIDIA container runtime variables
+    NVIDIA_VISIBLE_DEVICES = "all";
+    NVIDIA_DRIVER_CAPABILITIES = "all";
+  };
+
+  # DNS configuration
+  environment.etc."resolv.conf".text = ''
+    # search tii.local
+    nameserver 10.161.10.11
+    nameserver 8.8.8.8
+    nameserver 8.8.4.4
+    # options edns0
+  '';
+
+  # Ensure NVIDIA kernel modules are built and available
+  boot.extraModulePackages = [ config.boot.kernelPackages.nvidia_x11 ];
+
+  
+
   security.rtkit.enable = true;
   services.pipewire = {
     enable = true;
@@ -119,7 +224,7 @@
   users.users.renzo = {
     isNormalUser = true;
     description = "Renzo";
-    extraGroups = ["networkmanager" "wheel" "docker" "dialout" "fuse"];
+    extraGroups = ["networkmanager" "wheel" "docker" "dialout" "fuse" "video"];
     packages = with pkgs; [
       firefox
       python3Packages.pyserial
@@ -131,49 +236,13 @@
     isNormalUser = true;
     # hashedPassword = "$6$2TldBBBxBBgRL9CH$VldkwxIBPPk/aYCWGcB30v9g16WnoORcOxAcFE.RK4iE731QhPXoGi2GN7wx/1lAAHz49AyYQRIKCpXg7BTC.0";
     description = "Renzobc";
-    extraGroups = ["networkmanager" "wheel" "docker" "fuse"];
+    extraGroups = ["networkmanager" "wheel" "docker" "fuse" "video" "dialout"];
     packages = with pkgs; [
       firefox
       #  thunderbird
     ];
   };
 
-  # home-manager.users.renzo={
-  #   home={
-  #     username="renzo";
-  #     stateVersion="24.11";
-  #     homeDirectory="/home/renzo";
-  #   };
-  #   programs.git = {
-  #   package = pkgs.gitAndTools.gitFull;
-  #   enable = true;
-  #   userName = "Renzo Bruzzone";
-  #   userEmail = "renzo.bruzzone@tii.ae";
-  #   # delta.enable = true; # see diff in a new light
-  #   # delta.options = {
-  #   #   line-numbers = true;
-  #   #   side-by-side = true;
-  #   #   syntax-theme = "Dracula";
-  #   # };
-  #   ignores = ["*~" "*.swp"];
-  #   extraConfig = {
-  #     core.editor = "vscode";
-  #     color.ui = "auto";
-  #     #credential.helper = "store --file ~/.git-credentials";
-  #     format.signoff = true;
-  #     commit.gpgsign = true;
-  #     tag.gpgSign = true;
-  #     gpg.format = "ssh";
-  #     user.signingkey = "/home/renzo/.ssh/id_ed25519.pub";
-  #     gpg.ssh.allowedSignersFile = "/home/renzo/.ssh/allowed_signers";
-  #     init.defaultBranch = "main";
-  #     #protocol.keybase.allow = "always";
-  #     pull.rebase = "true";
-  #     push.default = "current";
-  #     github.user = "RenzoBruzzoneC";
-  #   };
-  # };
-  # };
 
   # Enable automatic login for the user.
   services.displayManager.autoLogin.enable = true;
@@ -193,27 +262,31 @@
     wget
     vscode
     terminator
-    docker_27
+    docker
     nmap
     git
     openconnect
     gnupg # For cryptographic keys
     docker-credential-helpers # Docker & docker-credential-pass
     pass # To use with docker-credential-pass
-    nvidia-docker
     containerd
     go
+    rpcsvc-proto
     tailscale
+    file
     python312
+    bashInteractive
     python3Packages.pip
     python3Packages.kconfiglib
     python3Packages.pyserial
     python3Packages.numpy
     python3Packages.pexpect
-    python3Packages.GitPython 
-    python3Packages.jinja2
+    python3Packages.GitPython
+    # python3Packages.jinja2
     python3Packages.pylint
     python3Packages.subunit
+    # python3Packages.pallets-sphinx-themes
+    direnv
     gcc
     cmake
     openssl
@@ -223,6 +296,7 @@
     xorg.libX11
     docker-compose
     gnumake
+    glibcLocales
     ejson
     tio
     oras
@@ -281,17 +355,21 @@
     gh
     binutils
     gdb
-    chrpath 
-    socat 
+    chrpath
+    socat
     cpio
     xz
     debianutils
     mesa
-    mesa.dev 
+    mesa.dev
     SDL
-    xterm 
-    zstd 
+    xterm
+    zstd
     lz4
+    nvidia-container-toolkit
+    nvidia-vaapi-driver
+    nvtopPackages.full
+    config.boot.kernelPackages.nvidia_x11  # This provides nvidia-smi
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -310,8 +388,6 @@
   # Disable ModemManager
   systemd.services.ModemManager.enable = false;
 
-  systemd.services."NetworkManager-wait-online".enable = true;
-
 
   # Enable tailscale
   services.tailscale.enable = true;
@@ -325,20 +401,6 @@
         pinentryPackage = pkgs.pinentry-qt;
       };
     };
-  };
-
-  #########################################################
-
-  environment.etc = {
-    "resolv.conf".text = ''
-      # search tii.local
-      nameserver 10.161.10.11
-      # nameserver 10.161.10.12 does not work
-      # nameserver 192.168.0.32 does not work
-      nameserver 8.8.8.8
-      nameserver 8.8.4.4
-      # options edns0
-    '';
   };
 
   #########################################################
@@ -357,7 +419,7 @@
   services.udev.extraRules = ''
     KERNEL=="ttyACM0", MODE:="666"
     SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="666"
-
+    KERNEL=="nvidia*", OWNER="root", GROUP="video", MODE="0660"
   '';
 
   networking.firewall.enable = false; # Ensure firewall is enabled
@@ -373,17 +435,22 @@
 
   #     WiFi Interface = wlp0s20f3 enp85s0(Internet source)
   #     USB Ethernet Interface = enp86s0u2c2 (Network to share Internet to)
-    # iptables -t nat -A POSTROUTING -o wlp0s20f3 -j MASQUERADE
-  networking.interfaces.enp86s0u1c2 = {
-      useDHCP = false;  # Disable DHCP for this interface
-      ipv4.addresses = [{
-        address = "192.168.128.25";  # Your desired IP address
-        prefixLength = 24;        # Your subnet mask (e.g., /24)
-      }];
-    };
-#   defaultGateway = "192.168.1.1";  # Your default gateway (router's IP)
-#   nameservers = ["8.8.8.8"];      # Your DNS servers (e.g., Google DNS)
-# };
+  # iptables -t nat -A POSTROUTING -o wlp0s20f3 -j MASQUERADE
+    # Disable waiting for network during boot
+  systemd.services."NetworkManager-wait-online".enable = false;
+
+  # networking.interfaces.enp86s0u1c2 = {
+  #   useDHCP = false; # Disable DHCP for this interface
+  #   ipv4.addresses = [
+  #     {
+  #       address = "192.168.128.25"; # Your desired IP address
+  #       prefixLength = 24; # Your subnet mask (e.g., /24)
+  #     }
+  #   ];
+  # };
+  #   defaultGateway = "192.168.1.1";  # Your default gateway (router's IP)
+  #   nameservers = ["8.8.8.8"];      # Your DNS servers (e.g., Google DNS)
+  # };
   networking.firewall.extraCommands = ''
     iptables -A FORWARD -i enp86s0u2c2 -o wlp0s20f3 -j ACCEPT
     iptables -A FORWARD -i wlp0s20f3 -o enp86s0u2c2 -m state --state RELATED,ESTABLISHED -j ACCEPT
@@ -433,9 +500,10 @@
   # Runtime Docker
   virtualisation.docker = {
     enable = true;
-    # enableNvidia = true;
     autoPrune.enable = true;
-    package = pkgs.docker_27;
+    package = pkgs.docker;
+
+    enableNvidia = true;
 
     # Configure Docker daemon.json settings
     daemon.settings = {
@@ -449,16 +517,12 @@
       # "exec-opts" = [ "native.cgroupdriver=systemd" ];
       # "data-root" = "/var/lib/docker";
     };
-
-    # extraOptions = ''
-    #   --log-driver=journald
-    #   --max-concurrent-downloads=3
-    # '';
-    extraOptions = ''
-      --add-runtime=nvidia=/run/current-system/sw/bin/nvidia-container-runtime
-      --default-runtime=nvidia
-    '';
   };
+
+  # Enable NVIDIA container support using the new CDI method
+  # virtualisation.containers.cdi.dynamic.nvidia.enable = true;
+  hardware.nvidia-container-toolkit.enable = true;
+
 
   # networking.firewall.enable  = false;
   # networking.firewall.allowedTCPPortRanges = [
@@ -477,10 +541,10 @@
   #     from = 3000;
   #     to = 9000;
   #   }
-    # {
-    #   from = 8000;
-    #   to = 8010;
-    # }
+  # {
+  #   from = 8000;
+  #   to = 8010;
+  # }
   # ];
   # networking.firewall.allowedTCPPorts = [22 80 443];
   virtualisation.oci-containers.backend = "docker";
@@ -500,7 +564,12 @@
     dates = "weekly";
   };
 
-  security.pki.certificateFiles = [
-    /var/lib/secrets/chain.crt
-  ];
+  # security.pki.certificateFiles = [
+  #   /var/lib/secrets/chain.crt
+  # ];
+
+
+  
+
+
 }

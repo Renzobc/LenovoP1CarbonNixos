@@ -46,5 +46,18 @@
         github.user = "Renzobc";
       };
     };
+
+    home.packages = with pkgs; [
+      (python3.withPackages (ps:
+        with ps; [
+          # (numpy.overridePythonAttrs (oldAttrs: { version = "1.23.5"; }))
+          (matplotlib.overridePythonAttrs (oldAttrs: {version = "3.6.2";}))
+          # (pillow.overridePythonAttrs (oldAttrs: { version = "9.2.0"; }))
+          (scikit-learn.overridePythonAttrs (oldAttrs: {version = "1.1.3";}))
+          # (pytorch.overridePythonAttrs (oldAttrs: { version = "2.4.0"; }))
+          # (torchaudio.overridePythonAttrs (oldAttrs: { version = "2.4.0"; }))
+          # (torchvision.overridePythonAttrs (oldAttrs: { version = "0.19.0"; }))
+        ]))
+    ];
   };
 }
